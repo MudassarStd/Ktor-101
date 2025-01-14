@@ -1,18 +1,57 @@
 package com.ktor
 
 import com.ktor.taskmanager.model.Priority
+import com.ktor.taskmanager.model.Task
 import com.ktor.taskmanager.model.TaskRepository
 import com.ktor.taskmanager.model.tasksAsTable
 import io.ktor.http.*
+import io.ktor.server.http.content.staticResources
 import io.ktor.server.application.*
-import io.ktor.server.http.content.*
+import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
+import java.util.*
 
 fun Application.configureRouting() {
     routing {
 
         staticResources("/task-ui", "task-ui")
+
+        // post routes
+        post("/tasks") {
+            val formContent = call.receiveParameters()
+
+            val params = Triple(
+                formContent["name"] ?: "",
+                formContent["description"] ?: "",
+                formContent["priority"] ?: ""
+            )
+            println("Data received: $params")
+
+            if (params.toList().any {it.isEmpty()}) {
+                call.respond(HttpStatusCode.BadRequest)
+                return@post
+            }
+
+            try {
+                val priority = Priority.valueOf(params.third.uppercase(Locale.getDefault()))
+
+                TaskRepository.addTask(
+                    Task(
+                        name = params.first,
+                        description = params.second,
+                        priority = priority,
+                    )
+                )
+
+                call.respond(HttpStatusCode.NoContent)
+                call.respondRedirect("/")
+
+            } catch (e: Exception) {
+                println(e.message)
+                call.respond(HttpStatusCode.BadRequest)
+            }
+        }
 
         get("/tasks") {
             call.respondText(contentType = ContentType.parse("text/html"),
